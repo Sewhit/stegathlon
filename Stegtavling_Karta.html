@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Walking Debt – Resan söderut</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: Calibri, -apple-system, sans-serif;
+    background: #FAF7F2;
+    color: #1A1A1A;
+    line-height: 1.5;
+  }
+
+  .header {
+    background: #1F3D2B;
+    color: white;
+    padding: 16px 24px;
+  }
+
+  .header-title h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+  }
+
+  .header-title p {
+    font-size: 13px;
+    color: #FAF7F2;
+    opacity: 0.85;
+    margin-top: 2px;
+  }
+
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: rgba(255,255,255,0.15);
+    margin-top: 16px;
+  }
+
+  .stat {
+    background: #1F3D2B;
+    padding: 10px 16px;
+    text-align: center;
+  }
+
+  .stat-label {
+    font-size: 10px;
+    color: #EF7D00;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+  }
+
+  .stat-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: white;
+    margin-top: 2px;
+  }
+
+  #map {
+    width: 100%;
+    height: calc(100vh - 200px);
+    min-height: 500px;
+  }
+
+  /* Custom marker styles */
+  .city-marker {
+    background: white;
+    border: 3px solid #1F3D2B;
+    border-radius: 50%;
+    width: 14px;
+    height: 14px;
+    display: block;
+  }
+
+  .city-marker.passed {
+    background: #1F3D2B;
+    border-color: #1F3D2B;
+  }
+
+  .city-marker.current {
+    background: #EF7D00;
+    border-color: #EF7D00;
+    width: 20px;
+    height: 20px;
+    margin-left: -3px;
+    margin-top: -3px;
+    box-shadow: 0 0 0 4px rgba(239, 125, 0, 0.3);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 4px rgba(239, 125, 0, 0.3); }
+    50% { box-shadow: 0 0 0 10px rgba(239, 125, 0, 0.1); }
+  }
+
+  /* Popup styling */
+  .leaflet-popup-content-wrapper {
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  }
+
+  .leaflet-popup-content {
+    margin: 14px 18px;
+    font-family: Calibri, sans-serif;
+    line-height: 1.5;
+  }
+
+  .popup-city {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1F3D2B;
+    margin-bottom: 2px;
+  }
+
+  .popup-distance {
+    font-size: 11px;
+    color: #6B6B6B;
+    margin-bottom: 8px;
+  }
+
+  .popup-steps {
+    background: #FAF7F2;
+    border-left: 3px solid #EF7D00;
+    padding: 6px 10px;
+    margin: 6px 0;
+    font-size: 13px;
+  }
+
+  .popup-steps strong {
+    color: #EF7D00;
+    font-weight: 700;
+  }
+
+  .popup-status {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+
+  .popup-status.passed {
+    background: #E1F5EE;
+    color: #1F3D2B;
+  }
+
+  .popup-status.current {
+    background: #EF7D00;
+    color: white;
+  }
+
+  .popup-status.upcoming {
+    background: #F5F5F5;
+    color: #6B6B6B;
+  }
+
+  /* Legend */
+  .legend {
+    background: white;
+    padding: 12px 16px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    font-size: 12px;
+  }
+
+  .legend-title {
+    font-weight: 700;
+    color: #1F3D2B;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 0;
+  }
+
+  .legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .legend-dot.passed { background: #1F3D2B; }
+  .legend-dot.current { background: #EF7D00; box-shadow: 0 0 0 3px rgba(239, 125, 0, 0.3); }
+  .legend-dot.upcoming { background: white; border: 2px solid #1F3D2B; }
+
+  .progress-bar {
+    background: #F5F5F5;
+    border-radius: 10px;
+    overflow: hidden;
+    height: 8px;
+    margin: 12px 0 4px;
+    width: 100%;
+  }
+
+  .progress-fill {
+    background: linear-gradient(90deg, #1F3D2B, #EF7D00);
+    height: 100%;
+    border-radius: 10px;
+    transition: width 0.6s ease;
+  }
+
+  .progress-label {
+    font-size: 11px;
+    color: #6B6B6B;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">
+    <h1>The Walking Debt – Resan söderut</h1>
+    <p>Från Stockholm mot Marrakech, 6 273 000 steg totalt</p>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat">
+      <div class="stat-label">Totalt gått</div>
+      <div class="stat-value" id="stat-total">2 446 707</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Just nu</div>
+      <div class="stat-value" id="stat-position">Strax efter Paris</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Nästa mål</div>
+      <div class="stat-value" id="stat-next">Bordeaux</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Av total resa</div>
+      <div class="stat-value" id="stat-percent">37%</div>
+    </div>
+  </div>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  // ============================================================
+  // ÄNDRA HÄR FÖR ATT UPPDATERA STEGEN
+  // ============================================================
+  const CURRENT_STEPS = 2446707;
+  // ============================================================
+
+  const cities = [
+    { name: "Stockholm", lat: 59.3327, lng: 18.0656, distance: 0, steps: 0 },
+    { name: "Linköping", lat: 58.4108, lng: 15.6214, distance: 200, steps: 267000 },
+    { name: "Jönköping", lat: 57.7826, lng: 14.1618, distance: 330, steps: 440000 },
+    { name: "Malmö", lat: 55.6050, lng: 13.0038, distance: 660, steps: 880000 },
+    { name: "Köpenhamn 🇩🇰", lat: 55.6761, lng: 12.5683, distance: 705, steps: 940000 },
+    { name: "Hamburg 🇩🇪", lat: 53.5488, lng: 9.9872, distance: 1025, steps: 1367000 },
+    { name: "Amsterdam 🇳🇱", lat: 52.3676, lng: 4.9041, distance: 1485, steps: 1980000 },
+    { name: "Bryssel 🇧🇪", lat: 50.8477, lng: 4.3572, distance: 1695, steps: 2260000 },
+    { name: "Paris 🇫🇷", lat: 48.8576, lng: 2.3514, distance: 2015, steps: 2687000 },
+    { name: "Bordeaux", lat: 44.8416, lng: -0.5811, distance: 2595, steps: 3460000 },
+    { name: "San Sebastián 🇪🇸", lat: 43.3182, lng: -1.9817, distance: 2835, steps: 3780000 },
+    { name: "Bilbao", lat: 43.2634, lng: -2.9348, distance: 2935, steps: 3913000 },
+    { name: "Madrid", lat: 40.4167, lng: -3.7033, distance: 3335, steps: 4447000 },
+    { name: "Sevilla", lat: 37.3891, lng: -5.9845, distance: 3865, steps: 5153000 },
+    { name: "Gibraltar 🇬🇮", lat: 36.1408, lng: -5.3536, distance: 4065, steps: 5420000 },
+    { name: "Tanger 🇲🇦", lat: 35.7595, lng: -5.8340, distance: 4125, steps: 5500000 },
+    { name: "Casablanca", lat: 33.5731, lng: -7.5898, distance: 4465, steps: 5953000 },
+    { name: "Marrakech 🐪", lat: 31.6225, lng: -7.9898, distance: 4705, steps: 6273000 }
+  ];
+
+  const TOTAL_STEPS = cities[cities.length - 1].steps;
+
+  // Initialize map
+  const map = L.map('map', {
+    scrollWheelZoom: true,
+    zoomControl: true
+  }).setView([47, 5], 5);
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap, © CartoDB',
+    subdomains: 'abcd',
+    maxZoom: 19
+  }).addTo(map);
+
+  // Layers we'll redraw on each update
+  let passedLine = null;
+  let upcomingLine = null;
+  let cityMarkers = [];
+  let currentMarker = null;
+  let legendControl = null;
+
+  function clearMap() {
+    if (passedLine) map.removeLayer(passedLine);
+    if (upcomingLine) map.removeLayer(upcomingLine);
+    if (currentMarker) map.removeLayer(currentMarker);
+    cityMarkers.forEach(m => map.removeLayer(m));
+    cityMarkers = [];
+    if (legendControl) map.removeControl(legendControl);
+  }
+
+  function render(currentSteps) {
+    clearMap();
+
+    // Find current segment
+    let lastPassedIdx = 0;
+    for (let i = 0; i < cities.length; i++) {
+      if (cities[i].steps <= currentSteps) {
+        lastPassedIdx = i;
+      } else {
+        break;
+      }
+    }
+
+    // Calculate current geographic position
+    let currentLat, currentLng, currentDistance;
+    if (lastPassedIdx < cities.length - 1 && currentSteps > 0) {
+      const passed = cities[lastPassedIdx];
+      const next = cities[lastPassedIdx + 1];
+      const segmentSteps = next.steps - passed.steps;
+      const stepsIntoSegment = currentSteps - passed.steps;
+      const fraction = stepsIntoSegment / segmentSteps;
+      currentLat = passed.lat + (next.lat - passed.lat) * fraction;
+      currentLng = passed.lng + (next.lng - passed.lng) * fraction;
+      currentDistance = passed.distance + (next.distance - passed.distance) * fraction;
+    } else if (currentSteps >= TOTAL_STEPS) {
+      currentLat = cities[cities.length - 1].lat;
+      currentLng = cities[cities.length - 1].lng;
+      currentDistance = cities[cities.length - 1].distance;
+    } else {
+      currentLat = cities[0].lat;
+      currentLng = cities[0].lng;
+      currentDistance = 0;
+    }
+
+    // Draw passed route - solid dark green
+    const passedCoords = cities.slice(0, lastPassedIdx + 1).map(c => [c.lat, c.lng]);
+    passedCoords.push([currentLat, currentLng]);
+
+    passedLine = L.polyline(passedCoords, {
+      color: '#1F3D2B',
+      weight: 4,
+      opacity: 0.85
+    }).addTo(map);
+
+    // Draw upcoming route - dashed orange
+    const upcomingCoords = [[currentLat, currentLng]].concat(
+      cities.slice(lastPassedIdx + 1).map(c => [c.lat, c.lng])
+    );
+
+    upcomingLine = L.polyline(upcomingCoords, {
+      color: '#EF7D00',
+      weight: 3,
+      opacity: 0.7,
+      dashArray: '10, 8'
+    }).addTo(map);
+
+    // Add city markers
+    cities.forEach((city, idx) => {
+      let status, statusLabel, markerClass;
+      if (city.steps <= currentSteps) {
+        status = 'passed';
+        statusLabel = '✓ Passerat';
+        markerClass = 'passed';
+      } else {
+        status = 'upcoming';
+        statusLabel = 'Kommande';
+        markerClass = '';
+      }
+
+      const icon = L.divIcon({
+        className: 'custom-marker',
+        html: `<div class="city-marker ${markerClass}"></div>`,
+        iconSize: [14, 14],
+        iconAnchor: [7, 7]
+      });
+
+      const stepsDiff = city.steps > currentSteps
+        ? (city.steps - currentSteps).toLocaleString('sv-SE') + ' steg kvar'
+        : (currentSteps - city.steps).toLocaleString('sv-SE') + ' steg över';
+
+      const popup = `
+        <div class="popup-city">${city.name}</div>
+        <div class="popup-distance">${city.distance.toLocaleString('sv-SE')} km från Stockholm</div>
+        <div class="popup-steps">
+          Mål: <strong>${city.steps.toLocaleString('sv-SE')} steg</strong>
+          ${city.steps > 0 ? '<br><span style="font-size:11px; color:#6B6B6B;">' + stepsDiff + '</span>' : ''}
+        </div>
+        <span class="popup-status ${status}">${statusLabel}</span>
+      `;
+
+      const marker = L.marker([city.lat, city.lng], { icon })
+        .addTo(map)
+        .bindPopup(popup);
+      cityMarkers.push(marker);
+    });
+
+    // Current position marker (pulsing)
+    const currentIcon = L.divIcon({
+      className: 'custom-marker',
+      html: '<div class="city-marker current"></div>',
+      iconSize: [20, 20],
+      iconAnchor: [10, 10]
+    });
+
+    // Build "currently at" description
+    let positionText;
+    if (currentSteps === 0) {
+      positionText = "Inte startat än";
+    } else if (currentSteps >= TOTAL_STEPS) {
+      positionText = "🎉 Framme i Marrakech!";
+    } else {
+      const passed = cities[lastPassedIdx];
+      const next = cities[lastPassedIdx + 1];
+      const segmentSteps = next.steps - passed.steps;
+      const stepsIntoSegment = currentSteps - passed.steps;
+      const fraction = stepsIntoSegment / segmentSteps;
+
+      if (fraction < 0.15) {
+        positionText = `Just passerat ${passed.name.replace(/[🇩🇰🇩🇪🇳🇱🇧🇪🇫🇷🇪🇸🇵🇹🇬🇮🇲🇦🐪]/gu, '').trim()}`;
+      } else if (fraction > 0.85) {
+        positionText = `Nästan framme i ${next.name.replace(/[🇩🇰🇩🇪🇳🇱🇧🇪🇫🇷🇪🇸🇵🇹🇬🇮🇲🇦🐪]/gu, '').trim()}`;
+      } else {
+        positionText = `Mellan ${passed.name.replace(/[🇩🇰🇩🇪🇳🇱🇧🇪🇫🇷🇪🇸🇵🇹🇬🇮🇲🇦🐪]/gu, '').trim()} och ${next.name.replace(/[🇩🇰🇩🇪🇳🇱🇧🇪🇫🇷🇪🇸🇵🇹🇬🇮🇲🇦🐪]/gu, '').trim()}`;
+      }
+    }
+
+    currentMarker = L.marker([currentLat, currentLng], { icon: currentIcon, zIndexOffset: 1000 })
+      .addTo(map)
+      .bindPopup(`
+        <div class="popup-city">📍 Just nu</div>
+        <div class="popup-distance">~${Math.round(currentDistance).toLocaleString('sv-SE')} km från Stockholm</div>
+        <div class="popup-steps">
+          Totalt: <strong>${currentSteps.toLocaleString('sv-SE')} steg</strong><br>
+          <span style="font-size:11px; color:#6B6B6B;">${positionText}</span>
+        </div>
+        <span class="popup-status current">The Walking Debt är här</span>
+      `);
+
+    // Update top stats bar
+    const percent = Math.min(100, Math.round((currentSteps / TOTAL_STEPS) * 100));
+
+    document.getElementById('stat-total').textContent = currentSteps.toLocaleString('sv-SE');
+    document.getElementById('stat-position').textContent = positionText;
+    document.getElementById('stat-percent').textContent = percent + '%';
+
+    // Next goal
+    if (lastPassedIdx < cities.length - 1) {
+      const nextCity = cities[lastPassedIdx + 1];
+      const stepsLeft = (nextCity.steps - currentSteps).toLocaleString('sv-SE');
+      const cleanName = nextCity.name.replace(/[🇩🇰🇩🇪🇳🇱🇧🇪🇫🇷🇪🇸🇵🇹🇬🇮🇲🇦🐪]/gu, '').trim();
+      document.getElementById('stat-next').textContent = cleanName;
+      document.getElementById('stat-next').title = stepsLeft + ' steg kvar';
+    } else {
+      document.getElementById('stat-next').textContent = 'Framme! 🎉';
+    }
+
+    // Update/recreate legend
+    legendControl = L.control({ position: 'bottomright' });
+    legendControl.onAdd = function() {
+      const div = L.DomUtil.create('div', 'legend');
+      div.innerHTML = `
+        <div class="legend-title">The Walking Debt</div>
+        <div class="legend-item">
+          <span class="legend-dot passed"></span>
+          <span>Passerade städer</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot current"></span>
+          <span>Nuvarande position</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot upcoming"></span>
+          <span>Kommande mål</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: ${percent}%"></div>
+        </div>
+        <div class="progress-label">${percent}% av resan</div>
+      `;
+      return div;
+    };
+    legendControl.addTo(map);
+  }
+
+  // Render the map with the current step count
+  render(CURRENT_STEPS);
+
+  // Auto-fit map to show entire route
+  setTimeout(() => {
+    const allCoords = cities.map(c => [c.lat, c.lng]);
+    map.fitBounds(allCoords, { padding: [50, 50] });
+  }, 100);
+</script>
+
+</body>
+</html>
