@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stegtävlingen – Resan söderut</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: Calibri, -apple-system, sans-serif;
+    background: #FAF7F2;
+    color: #1A1A1A;
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+
+  .header {
+    background: #1F3D2B;
+    color: white;
+    padding: 16px 24px;
+  }
+
+  .header-title h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+  }
+
+  .header-title p {
+    font-size: 13px;
+    color: #FAF7F2;
+    opacity: 0.85;
+    margin-top: 2px;
+  }
+
+  /* Fun comparison strip */
+  .fun-comparisons {
+    background: #2A5340;
+    color: #FAF7F2;
+    padding: 8px 24px;
+    font-size: 13px;
+    overflow: hidden;
+    white-space: nowrap;
+    position: relative;
+  }
+
+  .comparison-track {
+    display: inline-block;
+    animation: scrollLeft 60s linear infinite;
+    padding-left: 100%;
+  }
+
+  .comparison-item {
+    display: inline-block;
+    margin-right: 40px;
+  }
+
+  .comparison-item .emoji {
+    margin-right: 6px;
+  }
+
+  .comparison-item .value {
+    color: #EF7D00;
+    font-weight: 700;
+  }
+
+  @keyframes scrollLeft {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  .stats-bar {
+    display: grid;
+    grid-template-columns: 180px repeat(4, 1fr);
+    gap: 1px;
+    background: rgba(255,255,255,0.15);
+    margin-top: 14px;
+  }
+
+  .stat-team-label {
+    background: #1F3D2B;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .stat-team-label .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .stat-team-label .name {
+    font-size: 13px;
+    font-weight: 700;
+    color: white;
+  }
+
+  .stat {
+    background: #1F3D2B;
+    padding: 10px 16px;
+    text-align: center;
+  }
+
+  .stat-label {
+    font-size: 10px;
+    color: #EF7D00;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+  }
+
+  .stat-value {
+    font-size: 17px;
+    font-weight: 700;
+    color: white;
+    margin-top: 2px;
+  }
+
+  .stat-value.tick {
+    font-variant-numeric: tabular-nums;
+  }
+
+  #map {
+    width: 100%;
+    height: calc(100vh - 240px);
+    min-height: 500px;
+  }
+
+  /* Marker styles */
+  .city-marker {
+    background: white;
+    border: 3px solid #1F3D2B;
+    border-radius: 50%;
+    width: 14px;
+    height: 14px;
+    display: block;
+    cursor: pointer;
+  }
+
+  .city-marker.passed-both {
+    background: linear-gradient(135deg, #1F3D2B 50%, #8B1A1A 50%);
+    border-color: #1F3D2B;
+  }
+
+  .city-marker.passed-debt {
+    background: #1F3D2B;
+    border-color: #1F3D2B;
+  }
+
+  .city-marker.passed-cx {
+    background: #8B1A1A;
+    border-color: #8B1A1A;
+  }
+
+  /* Team position markers */
+  .team-marker-debt {
+    background: #EF7D00;
+    border: 3px solid white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    box-shadow: 0 0 0 4px rgba(239, 125, 0, 0.3);
+    animation: pulseDebt 2s infinite;
+  }
+
+  .team-marker-cx {
+    background: #8B1A1A;
+    border: 3px solid white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    box-shadow: 0 0 0 4px rgba(139, 26, 26, 0.3);
+    animation: pulseCx 2s infinite;
+  }
+
+  @keyframes pulseDebt {
+    0%, 100% { box-shadow: 0 0 0 4px rgba(239, 125, 0, 0.3); }
+    50% { box-shadow: 0 0 0 10px rgba(239, 125, 0, 0.1); }
+  }
+
+  @keyframes pulseCx {
+    0%, 100% { box-shadow: 0 0 0 4px rgba(139, 26, 26, 0.3); }
+    50% { box-shadow: 0 0 0 10px rgba(139, 26, 26, 0.1); }
+  }
+
+  /* Postcard popup styling */
+  .leaflet-popup-content-wrapper {
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .leaflet-popup-content {
+    margin: 0;
+    width: 320px !important;
+    font-family: Calibri, sans-serif;
+    line-height: 1.5;
+  }
+
+  .postcard {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .postcard-header {
+    background: linear-gradient(135deg, #1F3D2B, #2A5340);
+    color: white;
+    padding: 14px 18px;
+    position: relative;
+  }
+
+  .postcard-flag {
+    font-size: 32px;
+    margin-bottom: 4px;
+  }
+
+  .postcard-greeting {
+    font-size: 11px;
+    color: #EF7D00;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-weight: 600;
+  }
+
+  .postcard-city {
+    font-size: 22px;
+    font-weight: 700;
+    margin-top: 2px;
+  }
+
+  .postcard-distance {
+    font-size: 11px;
+    color: #FAF7F2;
+    opacity: 0.75;
+    margin-top: 4px;
+  }
+
+  .postcard-body {
+    padding: 14px 18px;
+    background: #FAF7F2;
+  }
+
+  .postcard-fact {
+    font-size: 13px;
+    color: #1A1A1A;
+    margin-bottom: 12px;
+    font-style: italic;
+    border-left: 3px solid #EF7D00;
+    padding-left: 10px;
+  }
+
+  .postcard-trivia {
+    background: white;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    font-size: 12px;
+  }
+
+  .postcard-trivia-label {
+    font-size: 10px;
+    color: #EF7D00;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .postcard-trivia-text {
+    color: #1A1A1A;
+  }
+
+  .postcard-teams {
+    background: white;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  .postcard-team-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 0;
+  }
+
+  .postcard-team-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .postcard-team-text {
+    flex: 1;
+  }
+
+  .postcard-team-text strong {
+    color: #1F3D2B;
+  }
+
+  .postcard-status-passed { color: #1F3D2B; font-weight: 600; }
+  .postcard-status-pending { color: #8B6F47; }
+
+  /* Legend */
+  .legend {
+    background: white;
+    padding: 12px 16px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    font-size: 12px;
+    min-width: 200px;
+  }
+
+  .legend-title {
+    font-weight: 700;
+    color: #1F3D2B;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+
+  .legend-section {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #F0F0F0;
+  }
+
+  .legend-section:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+    margin-bottom: 0;
+  }
+
+  .legend-team-name {
+    font-weight: 700;
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+
+  .legend-team-name.debt { color: #1F3D2B; }
+  .legend-team-name.cx { color: #8B1A1A; }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 3px 0;
+  }
+
+  .legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .legend-dot.position-debt {
+    background: #EF7D00;
+    box-shadow: 0 0 0 2px rgba(239, 125, 0, 0.3);
+  }
+
+  .legend-dot.position-cx {
+    background: #8B1A1A;
+    box-shadow: 0 0 0 2px rgba(139, 26, 26, 0.3);
+  }
+
+  .legend-dot.route-debt { background: #1F3D2B; }
+  .legend-dot.route-cx { background: #8B1A1A; }
+
+  .progress-bar {
+    background: #F5F5F5;
+    border-radius: 10px;
+    overflow: hidden;
+    height: 6px;
+    margin: 6px 0 2px;
+    width: 100%;
+  }
+
+  .progress-fill-debt {
+    background: #1F3D2B;
+    height: 100%;
+    border-radius: 10px;
+    transition: width 1.5s ease;
+  }
+
+  .progress-fill-cx {
+    background: #8B1A1A;
+    height: 100%;
+    border-radius: 10px;
+    transition: width 1.5s ease;
+  }
+
+  .progress-label {
+    font-size: 10px;
+    color: #6B6B6B;
+  }
+
+  /* Race banner - winner announcement */
+  #raceBanner {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    background: linear-gradient(135deg, #EF7D00, #FFA64D);
+    color: white;
+    padding: 30px 60px;
+    border-radius: 20px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+    z-index: 10000;
+    font-size: 24px;
+    font-weight: 700;
+    text-align: center;
+    pointer-events: none;
+    transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+
+  #raceBanner.show {
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  #raceBanner .small {
+    font-size: 14px;
+    opacity: 0.9;
+    margin-top: 6px;
+    font-weight: 400;
+  }
+
+  /* Confetti container */
+  #confettiContainer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 9999;
+    overflow: hidden;
+  }
+
+  .confetti {
+    position: absolute;
+    width: 10px;
+    height: 14px;
+    top: -20px;
+    opacity: 1;
+    animation: fall 3s linear forwards;
+  }
+
+  @keyframes fall {
+    0% {
+      transform: translateY(0) rotate(0deg);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(110vh) rotate(720deg);
+      opacity: 0.4;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">
+    <h1>Stegtävlingen – Resan söderut</h1>
+    <p>Från Stockholm mot Marrakech, 6 273 000 steg totalt</p>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat-team-label">
+      <span class="dot" style="background: #1F3D2B;"></span>
+      <span class="name">The Walking Debt</span>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Totalt gått</div>
+      <div class="stat-value tick" id="debt-total">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Just nu</div>
+      <div class="stat-value" id="debt-position">–</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Nästa mål</div>
+      <div class="stat-value" id="debt-next">–</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Av total resa</div>
+      <div class="stat-value tick" id="debt-percent">0%</div>
+    </div>
+
+    <div class="stat-team-label">
+      <span class="dot" style="background: #8B1A1A;"></span>
+      <span class="name">CX</span>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Totalt gått</div>
+      <div class="stat-value tick" id="cx-total">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Just nu</div>
+      <div class="stat-value" id="cx-position">–</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Nästa mål</div>
+      <div class="stat-value" id="cx-next">–</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Av total resa</div>
+      <div class="stat-value tick" id="cx-percent">0%</div>
+    </div>
+  </div>
+</div>
+
+<!-- Fun rolling comparisons -->
+<div class="fun-comparisons">
+  <div class="comparison-track" id="comparisonTrack"></div>
+</div>
+
+<div id="map"></div>
+
+<!-- Race banner and confetti overlay -->
+<div id="raceBanner"></div>
+<div id="confettiContainer"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  // ============================================================
+  // ÄNDRA HÄR FÖR ATT UPPDATERA STEGEN
+  // ============================================================
+  const WALKING_DEBT_STEPS = 2671376;
+  const CX_STEPS = 2185977;
+  // ============================================================
+
+  const cities = [
+    {
+      name: "Stockholm", lat: 59.3327, lng: 18.0656, distance: 0, steps: 0,
+      flag: "🇸🇪", greeting: "HEJ FRÅN STOCKHOLM!",
+      fact: "Här började vår resa! Sveriges huvudstad är byggd på 14 öar.",
+      trivia: "Stockholmare går i snitt 7 500 steg/dag. Här gick det 0 - vi var precis startade!"
+    },
+    {
+      name: "Linköping", lat: 58.4108, lng: 15.6214, distance: 200, steps: 267000,
+      flag: "🇸🇪", greeting: "HEJ FRÅN LINKÖPING!",
+      fact: "Östergötlands hjärta - flygindustri och universitet.",
+      trivia: "Cykelvänligaste staden i Sverige enligt SCB. Men vi går!"
+    },
+    {
+      name: "Jönköping", lat: 57.7826, lng: 14.1618, distance: 330, steps: 440000,
+      flag: "🇸🇪", greeting: "HALLÅ FRÅN JÖNKÖPING!",
+      fact: "Vid Vätterns södra spets - där tändstickorna kommer ifrån.",
+      trivia: "Här finns Sveriges enda 'Visingsörutt' - kanske vår nästa stegtävling?"
+    },
+    {
+      name: "Malmö", lat: 55.6050, lng: 13.0038, distance: 660, steps: 880000,
+      flag: "🇸🇪", greeting: "TJENA MALMÖ!",
+      fact: "Sveriges tredje största stad - och porten till kontinenten via Öresundsbron.",
+      trivia: "Turning Torso är 190m hög. Vi har gått motsvarande 4 631x dess höjd."
+    },
+    {
+      name: "Köpenhamn", lat: 55.6761, lng: 12.5683, distance: 705, steps: 940000,
+      flag: "🇩🇰", greeting: "HEJ FRÅN KÖPENHAMN!",
+      fact: "Vi är i Danmark - lyckligaste landet i världen enligt FN-rapporter.",
+      trivia: "Lilla sjöjungfrun är bara 1,25m hög. Mindre än ni tror! Smörrebröd-paus? 🥪"
+    },
+    {
+      name: "Hamburg", lat: 53.5488, lng: 9.9872, distance: 1025, steps: 1367000,
+      flag: "🇩🇪", greeting: "GUTEN TAG FRÅN HAMBURG!",
+      fact: "Tysklands största hamn och hemvist för Beatles tidigaste spelningar.",
+      trivia: "Här finns fler broar än i Venedig, Amsterdam och London tillsammans! 🌉"
+    },
+    {
+      name: "Amsterdam", lat: 52.3676, lng: 4.9041, distance: 1485, steps: 1980000,
+      flag: "🇳🇱", greeting: "HALLO FRÅN AMSTERDAM!",
+      fact: "Cykelhuvudstaden - här finns fler cyklar än invånare.",
+      trivia: "165 kanaler och 1 281 broar. Lättare att gå än köra bil! 🚲"
+    },
+    {
+      name: "Bryssel", lat: 50.8477, lng: 4.3572, distance: 1695, steps: 2260000,
+      flag: "🇧🇪", greeting: "BONJOUR FRÅN BRYSSEL!",
+      fact: "EU:s huvudstad och våffelparadis. Manneken Pis kissar fortfarande sedan 1619.",
+      trivia: "Belgien har 1 487 sorters öl. Och världens bästa pommes frites. 🍟"
+    },
+    {
+      name: "Paris", lat: 48.8576, lng: 2.3514, distance: 2015, steps: 2687000,
+      flag: "🇫🇷", greeting: "BONJOUR FRÅN PARIS!",
+      fact: "Ljusens stad - Eiffeltornet är 330m högt och växer 15cm på sommaren!",
+      trivia: "Vi har tillsammans 'klättrat' motsvarande 8 142 Eiffeltorn. Croissant-paus? 🥐"
+    },
+    {
+      name: "Bordeaux", lat: 44.8416, lng: -0.5811, distance: 2595, steps: 3460000,
+      flag: "🇫🇷", greeting: "SALUT FRÅN BORDEAUX!",
+      fact: "Världens vinhuvudstad - 800 miljoner flaskor produceras här varje år.",
+      trivia: "Området har lika många vingårdar som vi har deltagare i tävlingen. Skål! 🍷"
+    },
+    {
+      name: "San Sebastián", lat: 43.3182, lng: -1.9817, distance: 2835, steps: 3780000,
+      flag: "🇪🇸", greeting: "KAIXO FRÅN SAN SEBASTIÁN!",
+      fact: "Baskiska kusten - hem för pintxos (tapas) och flest Michelinstjärnor per capita.",
+      trivia: "Här lägger man cocktailpinnar på bardisken för att räkna vad man ätit. Genius! 🍢"
+    },
+    {
+      name: "Bilbao", lat: 43.2634, lng: -2.9348, distance: 2935, steps: 3913000,
+      flag: "🇪🇸", greeting: "KAIXO FRÅN BILBAO!",
+      fact: "Hem för Guggenheimmuseet - byggnaden är ett konstverk i sig.",
+      trivia: "Staden förvandlades från industristad till kulturmecka på 90-talet. 🎨"
+    },
+    {
+      name: "Madrid", lat: 40.4167, lng: -3.7033, distance: 3335, steps: 4447000,
+      flag: "🇪🇸", greeting: "HOLA FRÅN MADRID!",
+      fact: "Europas högst belägna huvudstad - 667m över havet.",
+      trivia: "Madridborna äter middag kl 22. Vi måste anpassa stegmålen efter siestan! 😴"
+    },
+    {
+      name: "Sevilla", lat: 37.3891, lng: -5.9845, distance: 3865, steps: 5153000,
+      flag: "🇪🇸", greeting: "HOLA FRÅN SEVILLA!",
+      fact: "Flamencons huvudstad - och världens hetaste storstad (40°C+ på sommaren!).",
+      trivia: "Här finns Europas tredje största katedral. Och fantastisk paella. 💃"
+    },
+    {
+      name: "Gibraltar", lat: 36.1408, lng: -5.3536, distance: 4065, steps: 5420000,
+      flag: "🇬🇮", greeting: "HELLO FROM GIBRALTAR!",
+      fact: "Brittiskt territorium på Spaniens spets - här bor Europas enda vilda apor!",
+      trivia: "Klippan är 426m hög. Vi når Afrika över sundet - bara 14km bort! 🐒"
+    },
+    {
+      name: "Tanger", lat: 35.7595, lng: -5.8340, distance: 4125, steps: 5500000,
+      flag: "🇲🇦", greeting: "SALAAM FRÅN TANGER!",
+      fact: "VÄLKOMMEN TILL AFRIKA! Tanger är där Atlanten möter Medelhavet.",
+      trivia: "Vi har gått från ett kontinent till ett annat. Häftigt! 🌍"
+    },
+    {
+      name: "Casablanca", lat: 33.5731, lng: -7.5898, distance: 4465, steps: 5953000,
+      flag: "🇲🇦", greeting: "SALAAM FRÅN CASABLANCA!",
+      fact: "Marockos största stad och här ligger Afrikas största moské - Hassan II.",
+      trivia: "'Här ska du titta in på en drink, kid' - filmen Casablanca från 1942. 🎬"
+    },
+    {
+      name: "Marrakech", lat: 31.6225, lng: -7.9898, distance: 4705, steps: 6273000,
+      flag: "🇲🇦", greeting: "TILLYKKE - VI ÄR FRAMME!",
+      fact: "RESANS MÅL! Marrakech är basarernas stad med röda lerstenar och Atlasbergen.",
+      trivia: "Vi gjorde det! Stockholm → Marrakech till fots (i teorin). 🐪🎉"
+    }
+  ];
+
+  const TOTAL_STEPS = cities[cities.length - 1].steps;
+
+  // ============================================================
+  // Funny comparisons - calculated based on total steps
+  // ============================================================
+  function buildComparisons(stepsTotal) {
+    const km = (stepsTotal * 0.75) / 1000;
+    const calories = Math.round(stepsTotal * 0.04); // ~0.04 kcal per step
+    const bigMacs = Math.round(calories / 250);
+    const eiffelTowers = Math.round((stepsTotal * 0.75) / 330);
+    const globenLaps = Math.round((stepsTotal * 0.75) / 640); // Globen circle ~640m
+    const swedenLength = (km / 1572).toFixed(1); // Sweden N-S 1572km
+    const earthLaps = ((km / 40075) * 100).toFixed(2);
+    const moonDistance = ((km / 384400) * 100).toFixed(4);
+
+    return [
+      { emoji: "🌍", text: "har gått", value: km.toLocaleString('sv-SE', {maximumFractionDigits: 0}) + " km" },
+      { emoji: "🏟️", text: "=", value: globenLaps.toLocaleString('sv-SE') + " varv runt Globen" },
+      { emoji: "🗼", text: "= klättrat", value: eiffelTowers.toLocaleString('sv-SE') + " Eiffeltorn i höjd" },
+      { emoji: "🍔", text: "= brände", value: bigMacs.toLocaleString('sv-SE') + " Big Mac" },
+      { emoji: "🇸🇪", text: "=", value: swedenLength + " gånger Sveriges längd" },
+      { emoji: "🌎", text: "=", value: earthLaps + "% av jordens omkrets" },
+      { emoji: "🔋", text: "= bränt", value: calories.toLocaleString('sv-SE') + " kalorier" },
+      { emoji: "🚀", text: "=", value: moonDistance + "% av vägen till månen" }
+    ];
+  }
+
+  function renderComparisons() {
+    const totalSteps = WALKING_DEBT_STEPS + CX_STEPS;
+    const comparisons = buildComparisons(totalSteps);
+
+    const track = document.getElementById('comparisonTrack');
+    // Repeat twice for seamless scroll
+    let html = '';
+    for (let i = 0; i < 2; i++) {
+      comparisons.forEach(c => {
+        html += `<span class="comparison-item">
+          <span class="emoji">${c.emoji}</span>
+          <span>${c.text}</span>
+          <span class="value">${c.value}</span>
+        </span>`;
+      });
+    }
+    track.innerHTML = html;
+  }
+
+  // ============================================================
+  // Map setup
+  // ============================================================
+  const map = L.map('map', {
+    scrollWheelZoom: true,
+    zoomControl: true
+  }).setView([47, 5], 5);
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap, © CartoDB',
+    subdomains: 'abcd',
+    maxZoom: 19
+  }).addTo(map);
+
+  function cleanName(name) {
+    return name.replace(/[🇩🇰🇩🇪🇳🇱🇧🇪🇫🇷🇪🇸🇵🇹🇬🇮🇲🇦🐪🇸🇪]/gu, '').trim();
+  }
+
+  function calculatePosition(currentSteps) {
+    let lastPassedIdx = 0;
+    for (let i = 0; i < cities.length; i++) {
+      if (cities[i].steps <= currentSteps) {
+        lastPassedIdx = i;
+      } else {
+        break;
+      }
+    }
+
+    let lat, lng, distance, positionText, nextCityName;
+
+    if (currentSteps === 0) {
+      lat = cities[0].lat;
+      lng = cities[0].lng;
+      distance = 0;
+      positionText = "Inte startat";
+      nextCityName = cleanName(cities[1].name);
+    } else if (currentSteps >= TOTAL_STEPS) {
+      lat = cities[cities.length - 1].lat;
+      lng = cities[cities.length - 1].lng;
+      distance = cities[cities.length - 1].distance;
+      positionText = "🎉 Framme!";
+      nextCityName = "Framme!";
+    } else {
+      const passed = cities[lastPassedIdx];
+      const next = cities[lastPassedIdx + 1];
+      const segmentSteps = next.steps - passed.steps;
+      const fraction = (currentSteps - passed.steps) / segmentSteps;
+      lat = passed.lat + (next.lat - passed.lat) * fraction;
+      lng = passed.lng + (next.lng - passed.lng) * fraction;
+      distance = passed.distance + (next.distance - passed.distance) * fraction;
+
+      const passedName = cleanName(passed.name);
+      const nextName = cleanName(next.name);
+
+      if (fraction < 0.15) {
+        positionText = `Just efter ${passedName}`;
+      } else if (fraction > 0.85) {
+        positionText = `Nästan i ${nextName}`;
+      } else {
+        positionText = `${passedName} → ${nextName}`;
+      }
+
+      nextCityName = nextName;
+    }
+
+    return { lat, lng, distance, positionText, nextCityName, lastPassedIdx };
+  }
+
+  const debtPos = calculatePosition(WALKING_DEBT_STEPS);
+  const cxPos = calculatePosition(CX_STEPS);
+
+  // Draw entire route as faint dashed orange line
+  const allCoords = cities.map(c => [c.lat, c.lng]);
+  L.polyline(allCoords, {
+    color: '#EF7D00',
+    weight: 2,
+    opacity: 0.4,
+    dashArray: '8, 6'
+  }).addTo(map);
+
+  // Walking Debt route
+  const debtPassedCoords = cities.slice(0, debtPos.lastPassedIdx + 1).map(c => [c.lat, c.lng]);
+  if (WALKING_DEBT_STEPS > 0) debtPassedCoords.push([debtPos.lat, debtPos.lng]);
+  L.polyline(debtPassedCoords, {
+    color: '#1F3D2B',
+    weight: 4,
+    opacity: 0.85
+  }).addTo(map);
+
+  // CX route
+  const cxPassedCoords = cities.slice(0, cxPos.lastPassedIdx + 1).map(c => [c.lat, c.lng]);
+  if (CX_STEPS > 0) cxPassedCoords.push([cxPos.lat, cxPos.lng]);
+  L.polyline(cxPassedCoords, {
+    color: '#8B1A1A',
+    weight: 4,
+    opacity: 0.85
+  }).addTo(map);
+
+  // Build postcard popup HTML
+  function buildPostcard(city) {
+    const passedByDebt = city.steps <= WALKING_DEBT_STEPS;
+    const passedByCx = city.steps <= CX_STEPS;
+
+    const debtStatus = passedByDebt
+      ? '<span class="postcard-status-passed">✓ Passerat</span>'
+      : `<span class="postcard-status-pending">${(city.steps - WALKING_DEBT_STEPS).toLocaleString('sv-SE')} steg kvar</span>`;
+    const cxStatus = passedByCx
+      ? '<span class="postcard-status-passed">✓ Passerat</span>'
+      : `<span class="postcard-status-pending">${(city.steps - CX_STEPS).toLocaleString('sv-SE')} steg kvar</span>`;
+
+    return `
+      <div class="postcard">
+        <div class="postcard-header">
+          <div class="postcard-flag">${city.flag}</div>
+          <div class="postcard-greeting">${city.greeting}</div>
+          <div class="postcard-city">${cleanName(city.name)}</div>
+          <div class="postcard-distance">${city.distance.toLocaleString('sv-SE')} km från Stockholm • Mål: ${city.steps.toLocaleString('sv-SE')} steg</div>
+        </div>
+        <div class="postcard-body">
+          <div class="postcard-fact">"${city.fact}"</div>
+          <div class="postcard-trivia">
+            <div class="postcard-trivia-label">💡 Visste du?</div>
+            <div class="postcard-trivia-text">${city.trivia}</div>
+          </div>
+          ${city.steps > 0 ? `
+          <div class="postcard-teams">
+            <div class="postcard-team-row">
+              <span class="postcard-team-dot" style="background:#1F3D2B"></span>
+              <span class="postcard-team-text"><strong>The Walking Debt:</strong> ${debtStatus}</span>
+            </div>
+            <div class="postcard-team-row">
+              <span class="postcard-team-dot" style="background:#8B1A1A"></span>
+              <span class="postcard-team-text"><strong>CX:</strong> ${cxStatus}</span>
+            </div>
+          </div>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  // City markers with postcards
+  cities.forEach((city) => {
+    const passedByDebt = city.steps <= WALKING_DEBT_STEPS;
+    const passedByCx = city.steps <= CX_STEPS;
+
+    let markerClass = '';
+    if (passedByDebt && passedByCx) markerClass = 'passed-both';
+    else if (passedByDebt) markerClass = 'passed-debt';
+    else if (passedByCx) markerClass = 'passed-cx';
+
+    const icon = L.divIcon({
+      className: 'custom-marker',
+      html: `<div class="city-marker ${markerClass}"></div>`,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7]
+    });
+
+    L.marker([city.lat, city.lng], { icon })
+      .addTo(map)
+      .bindPopup(buildPostcard(city), { maxWidth: 340, className: 'postcard-popup' });
+  });
+
+  // Team position markers
+  const debtIcon = L.divIcon({
+    className: 'custom-marker',
+    html: '<div class="team-marker-debt"></div>',
+    iconSize: [20, 20],
+    iconAnchor: [10, 10]
+  });
+
+  L.marker([debtPos.lat, debtPos.lng], { icon: debtIcon, zIndexOffset: 1000 })
+    .addTo(map)
+    .bindPopup(`
+      <div class="postcard">
+        <div class="postcard-header">
+          <div class="postcard-flag">🚶‍♂️</div>
+          <div class="postcard-greeting" style="color:#FFFFFF; opacity:0.9;">NUVARANDE POSITION</div>
+          <div class="postcard-city">The Walking Debt</div>
+          <div class="postcard-distance">${Math.round(debtPos.distance).toLocaleString('sv-SE')} km från Stockholm</div>
+        </div>
+        <div class="postcard-body">
+          <div class="postcard-fact">${WALKING_DEBT_STEPS.toLocaleString('sv-SE')} steg • ${debtPos.positionText}</div>
+        </div>
+      </div>
+    `, { maxWidth: 340 });
+
+  const cxIcon = L.divIcon({
+    className: 'custom-marker',
+    html: '<div class="team-marker-cx"></div>',
+    iconSize: [20, 20],
+    iconAnchor: [10, 10]
+  });
+
+  L.marker([cxPos.lat, cxPos.lng], { icon: cxIcon, zIndexOffset: 999 })
+    .addTo(map)
+    .bindPopup(`
+      <div class="postcard">
+        <div class="postcard-header" style="background: linear-gradient(135deg, #8B1A1A, #A82828);">
+          <div class="postcard-flag">🚶‍♀️</div>
+          <div class="postcard-greeting" style="color:#FFFFFF; opacity:0.9;">NUVARANDE POSITION</div>
+          <div class="postcard-city">CX</div>
+          <div class="postcard-distance">${Math.round(cxPos.distance).toLocaleString('sv-SE')} km från Stockholm</div>
+        </div>
+        <div class="postcard-body">
+          <div class="postcard-fact">${CX_STEPS.toLocaleString('sv-SE')} steg • ${cxPos.positionText}</div>
+        </div>
+      </div>
+    `, { maxWidth: 340 });
+
+  // ============================================================
+  // Animated counter
+  // ============================================================
+  function animateValue(elementId, start, end, duration, suffix = '') {
+    const obj = document.getElementById(elementId);
+    if (!obj) return;
+    const startTime = performance.now();
+
+    function step(currentTime) {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // Ease out cubic for smoother feel
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const value = Math.round(start + (end - start) * eased);
+      obj.textContent = value.toLocaleString('sv-SE') + suffix;
+      if (progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function updateStats() {
+    const debtPercent = Math.min(100, Math.round((WALKING_DEBT_STEPS / TOTAL_STEPS) * 100));
+    const cxPercent = Math.min(100, Math.round((CX_STEPS / TOTAL_STEPS) * 100));
+
+    document.getElementById('debt-position').textContent = debtPos.positionText;
+    document.getElementById('debt-next').textContent = debtPos.nextCityName;
+    document.getElementById('cx-position').textContent = cxPos.positionText;
+    document.getElementById('cx-next').textContent = cxPos.nextCityName;
+
+    // Animate counters
+    animateValue('debt-total', 0, WALKING_DEBT_STEPS, 1800);
+    animateValue('debt-percent', 0, debtPercent, 1800, '%');
+    animateValue('cx-total', 0, CX_STEPS, 1800);
+    animateValue('cx-percent', 0, cxPercent, 1800, '%');
+  }
+
+  // Add legend
+  const debtPercent = Math.min(100, Math.round((WALKING_DEBT_STEPS / TOTAL_STEPS) * 100));
+  const cxPercent = Math.min(100, Math.round((CX_STEPS / TOTAL_STEPS) * 100));
+  const lead = WALKING_DEBT_STEPS > CX_STEPS
+    ? `🏆 The Walking Debt leder med ${(WALKING_DEBT_STEPS - CX_STEPS).toLocaleString('sv-SE')} steg`
+    : CX_STEPS > WALKING_DEBT_STEPS
+      ? `🏆 CX leder med ${(CX_STEPS - WALKING_DEBT_STEPS).toLocaleString('sv-SE')} steg`
+      : '🤝 Lika!';
+
+  const legend = L.control({ position: 'bottomright' });
+  legend.onAdd = function() {
+    const div = L.DomUtil.create('div', 'legend');
+    div.innerHTML = `
+      <div class="legend-title">Lagens framsteg</div>
+      <div class="legend-section">
+        <div class="legend-team-name debt">The Walking Debt</div>
+        <div class="legend-item">
+          <span class="legend-dot position-debt"></span>
+          <span>Nuvarande position</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot route-debt"></span>
+          <span>Passerad rutt</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill-debt" id="debtBar" style="width: 0%"></div>
+        </div>
+        <div class="progress-label"><span id="debtBarLabel">0</span>% av resan</div>
+      </div>
+      <div class="legend-section">
+        <div class="legend-team-name cx">CX</div>
+        <div class="legend-item">
+          <span class="legend-dot position-cx"></span>
+          <span>Nuvarande position</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot route-cx"></span>
+          <span>Passerad rutt</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill-cx" id="cxBar" style="width: 0%"></div>
+        </div>
+        <div class="progress-label"><span id="cxBarLabel">0</span>% av resan</div>
+      </div>
+      <div class="legend-section" style="text-align: center; font-weight: 700; font-size: 11px; color: #EF7D00;">
+        ${lead}
+      </div>
+    `;
+    return div;
+  };
+  legend.addTo(map);
+
+  // Animate progress bars after legend is added
+  setTimeout(() => {
+    document.getElementById('debtBar').style.width = debtPercent + '%';
+    document.getElementById('cxBar').style.width = cxPercent + '%';
+    animateValue('debtBarLabel', 0, debtPercent, 1800);
+    animateValue('cxBarLabel', 0, cxPercent, 1800);
+  }, 300);
+
+  // ============================================================
+  // Confetti & race banner functions
+  // ============================================================
+  function fireConfetti(count = 80) {
+    const colors = ['#EF7D00', '#1F3D2B', '#8B1A1A', '#FAF7F2', '#FFA64D', '#2A5340'];
+    const container = document.getElementById('confettiContainer');
+
+    for (let i = 0; i < count; i++) {
+      const confetti = document.createElement('div');
+      confetti.className = 'confetti';
+      confetti.style.left = Math.random() * 100 + '%';
+      confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+      confetti.style.animationDuration = (2 + Math.random() * 2) + 's';
+      confetti.style.animationDelay = (Math.random() * 0.5) + 's';
+      confetti.style.transform = `rotate(${Math.random() * 360}deg)`;
+      container.appendChild(confetti);
+      setTimeout(() => confetti.remove(), 4000);
+    }
+  }
+
+  function showRaceBanner(message, subtitle) {
+    const banner = document.getElementById('raceBanner');
+    banner.innerHTML = `${message}<div class="small">${subtitle}</div>`;
+    banner.classList.add('show');
+    setTimeout(() => banner.classList.remove('show'), 3500);
+  }
+
+  // Check if recently passed milestones - announce them
+  // The most recently passed city for each team triggers a confetti burst
+  function announceRecentMilestones() {
+    if (debtPos.lastPassedIdx > 0) {
+      const recentCity = cities[debtPos.lastPassedIdx];
+      const stepsOver = WALKING_DEBT_STEPS - recentCity.steps;
+      // If passed within last ~10% of segment to next, consider it "fresh"
+      const nextCity = cities[debtPos.lastPassedIdx + 1];
+      if (nextCity) {
+        const segmentSteps = nextCity.steps - recentCity.steps;
+        if (stepsOver < segmentSteps * 0.2) {
+          // Fresh milestone! Fire confetti
+          setTimeout(() => {
+            fireConfetti(100);
+            showRaceBanner(
+              `🎉 ${cleanName(recentCity.name)} ${recentCity.flag}`,
+              `The Walking Debt har precis nått ${cleanName(recentCity.name)}!`
+            );
+          }, 2200);
+        }
+      }
+    }
+  }
+
+  // ============================================================
+  // Initialize everything
+  // ============================================================
+  renderComparisons();
+
+  setTimeout(() => {
+    map.fitBounds(allCoords, { padding: [50, 50] });
+    updateStats();
+    announceRecentMilestones();
+  }, 100);
+</script>
+
+</body>
+</html>
